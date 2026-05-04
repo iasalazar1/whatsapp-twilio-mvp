@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from twilio.twiml.messaging_response import MessagingResponse
 from app.transcription import transcribe_mediafile, transcribe_pending_mediafiles
 from app.parsing import normalize_date_text, normalize_time_text
+from app.ia import analyze_intent_mistral
 
 from app.storage import (
     init_db,
@@ -307,25 +308,15 @@ async def whatsapp_webhook(request: Request):
         log_message(phone=From, direction="out", body=reply)
         return build_twiml_message(reply)
 
-    # Respuestas globales informativas
-    if "horario" in incoming_lower:
-        reply = "Nuestro horario es de lunes a sábado de 9 AM a 6 PM."
-        log_message(phone=From, direction="out", body=reply)
-        return build_twiml_message(reply)
-
-    if (
-        "ubicacion" in incoming_lower
-        or "ubicación" in incoming_lower
-        or "direccion" in incoming_lower
-        or "dirección" in incoming_lower
-    ):
-        reply = "Estamos en Av. Principal 123, Colonia Centro."
-        log_message(phone=From, direction="out", body=reply)
-        return build_twiml_message(reply)
-
-    # Flujo por estado
+    # ==========================================
+    # IA: ENRUTAMIENTO INTELIGENTE (Estado inicio)
+    # ==========================================
     if user["state"] == "inicio":
-        if "cita" in incoming_lower or "agendar" in incoming_lower:
+        # Usamos Mistral para entender qué quiere el usuario
+        analysis = analyze_intent_mistral(incoming)
+        intent = analysis.get("intent")
+
+        if intent == "agendar_cita":
             save_user_state(
                 phone=From,
                 state="esperando_servicio",
@@ -334,26 +325,32 @@ async def whatsapp_webhook(request: Request):
                 hora=user["hora"],
                 nombre=user["nombre"]
             )
-            reply = (
-                "Con gusto. ¿Qué servicio necesitas?\n"
-                "Ejemplo: limpieza dental, consulta, corte, barba."
-            )
-            logger.info("STATE CHANGE | from=%s | state=esperando_servicio", From)
+            reply = "Con gusto. ¿Qué servicio necesitas?\nEjemplo: limpieza dental, consulta, corte, barba."
+            logger.info("STATE CHANGE | from=%s | state=esperando_servicio | via=IA", From)
             log_message(phone=From, direction="out", body=reply)
             return build_twiml_message(reply)
 
-        reply = (
-            "Hola. Puedo ayudarte a:\n"
-            "1) agendar una cita\n"
-            "2) consultar horario\n"
-            "3) consultar ubicación\n\n"
-            "Escribe, por ejemplo: quiero una cita"
-        )
-        log_message(phone=From, direction="out", body=reply)
-        return build_twiml_message(reply)
+        elif intent == "consultar_horario":
+            reply = "Nuestro horario es de lunes a sábado de 9 AM a 6 PM. ¿Deseas agendar una cita?"
+            log_message(phone=From, direction="out", body=reply)
+            return build_twiml_message(reply)
+
+        elif intent == "consultar_ubicacion":
+            reply = "Estamos en Av. Principal 123, Colonia Centro. ¿Te gustaría agendar una cita?"
+            log_message(phone=From, direction="out", body=reply)
+            return build_twiml_message(reply)
+
+        else:
+            reply = (
+                "Hola 👋. Soy tu asistente virtual.\n"
+                "Puedo ayudarte a agendar una cita, consultar nuestros horarios o ubicación.\n"
+                "¿En qué te puedo ayudar hoy?"
+            )
+            logger.warning("IA INTENT NO RECONOCIDO | from=%s | intent=%s", From, intent)
+            log_message(phone=From, direction="out", body=reply)
+            return build_twiml_message(reply)
 
     elif user["state"] == "esperando_servicio":
-
         if not looks_like_service(incoming):
             reply = (
                 "No alcancé a entender el servicio.\n"
