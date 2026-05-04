@@ -6,6 +6,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import Response
 from twilio.twiml.messaging_response import MessagingResponse
 from app.transcription import transcribe_mediafile, transcribe_pending_mediafiles
+from app.parsing import normalize_date_text, normalize_time_text
 
 from app.storage import (
     init_db,
@@ -32,20 +33,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def looks_like_date(text: str) -> bool:
     if not text:
         return False
+    # Usamos el nuevo helper
+    if normalize_date_text(text) is not None:
+        return True
+        
+    # Mantenemos tus regex originales como respaldo para formatos dd/mm/yyyy
     value = text.strip().lower()
-    if "mañana" in value or "manana" in value:
-        return True
-    weekdays = [
-        "lunes", "martes", "miercoles", "miércoles",
-        "jueves", "viernes", "sabado", "sábado", "domingo"
-    ]
-    if any(day in value for day in weekdays):
-        return True
-    if "hoy" in value:
-        return True
     if re.search(r"\b\d{1,2}[/-]\d{1,2}([/-]\d{2,4})?\b", value):
         return True
     if re.search(r"\b\d{1,2}\s+de\s+[a-záéíóúñ]+\b", value):
@@ -55,11 +52,12 @@ def looks_like_date(text: str) -> bool:
 def looks_like_time(text: str) -> bool:
     if not text:
         return False
+    # Usamos el nuevo helper
+    if normalize_time_text(text) is not None:
+        return True
+        
+    # Mantenemos tus regex como respaldo
     value = text.strip().lower()
-    if re.search(r"\b\d{1,2}(:\d{2})?\s?(am|pm)\b", value):
-        return True
-    if re.search(r"\b\d{1,2}:\d{2}\b", value):
-        return True
     if re.search(r"\b\d{1,2}\s?(de la mañana|de la tarde|de la noche)\b", value):
         return True
     return False
