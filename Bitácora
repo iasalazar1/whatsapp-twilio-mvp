@@ -1,0 +1,24 @@
+# Bitácora de avance
+
+## Fecha
+2026-05-04
+
+## Bloque trabajado
+1. Implementación de helpers de parsing para normalizar fechas y horas (`app/parsing.py`).
+2. Integración exitosa de IA en la nube usando la API de Mistral (`app/ia.py`).
+3. Reemplazo del menú estático por enrutamiento inteligente NLP (procesamiento de lenguaje natural) en el estado de inicio.
+4. Validación en la nube usando ngrok y Twilio Sandbox.
+
+## Qué quedó validado
+- Helpers `normalize_date_text` y `normalize_time_text` operando.
+- Conexión REST nativa con `api.mistral.ai` (sin depender de librerías conflictivas).
+- Enrutamiento por IA: el bot entiende intenciones complejas y devuelve la ubicación, horario o inicia el flujo de citas.
+- Pruebas "offline" con `curl` para no agotar el límite de 5 mensajes/día de Twilio Sandbox.
+
+## Decisiones tomadas
+- Se eligió Mistral API (`mistral-small-latest`) por rapidez, costo y respuesta nativa en JSON.
+- La IA solo controla el enrutamiento inicial por ahora; el flujo de estado (`esperando_servicio`, etc.) se mantiene con código tradicional para garantizar estabilidad del MVP.
+
+## Siguiente paso recomendado
+Aprovechar el JSON que devuelve Mistral para **extracción de entidades**. Si el usuario dice "quiero un corte mañana a las 5pm", extraer servicio, fecha y hora en la primera pasada para saltarnos preguntas y hacer el bot más ágil.
+
